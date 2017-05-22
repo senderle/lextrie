@@ -3,9 +3,19 @@ import os
 import sys
 import csv
 
-from lextrie.util import LexTrie
-
 def main():
+    if len(sys.argv) <= 1 or (len(sys.argv) == 2 and
+                              sys.argv[1].startswith('--')):
+        print('Read a list of files, count Lexicon instances, '
+              'and generate a CSV.')
+        print('Usage: python lextrie.py file_path [file_path ...]')
+        print('Options: ')
+        for pn in LexTrie.plugin_names():
+            print('    --{}'.format(pn))
+    else:
+        main_exec()
+
+def main_exec():
     args = list(sys.argv)[1:]
     opts = [a for a in args if a.startswith('--')]
     args = [a for a in args if not a.startswith('--')]
