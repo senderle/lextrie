@@ -1,8 +1,12 @@
 import re
 import os
+import pkg_resources
+import shutil
 
 from collections import defaultdict, Counter
 from lextrie._lexica import plugins
+
+_lexica_dir = pkg_resources.resource_filename('lextrie', '_lexica')
 
 def load_lex(filename):
     with open(filename) as f:
@@ -51,6 +55,12 @@ class LexTrie(object):
     _plugins = plugins._asdict()
 
     def __init__(self, lexicon):
+        """
+        Create a new LexTrie object from a lexicon in the tag_map
+        format. Most of the time, users will want to use a pre-installed
+        plugin; to create an instance of LexTrie based on a plugin, use
+        the `from_plugin` method.
+        """
         if isinstance(lexicon, str) and os.path.exists(lexicon):
             self.lexicon = load_lex(lexicon)
         else:
@@ -62,6 +72,96 @@ class LexTrie(object):
         self.trie = make_trie(*zip(*self._words_tags))
 
     @classmethod
+    def install_plugin(cls, plugin_path):
+        """
+        Copy a plugin into the plugin directory. If a plugin by the
+        same name exists, raise a ValueError. If the user doesn't have the
+        necessary permissions, this will fail, most likely with a
+        PermissionError.
+        """
+        plugin_loc, plugin_name = os.path.split(plugin_path)
+        if os.path.exists(os.path.join(_lexica_dir, plugin_name)):
+            msg = ('Plugin {} already exists! '
+                   'Use LexTrie.disable_plugin({}) to remove it.')
+            raise ValueError(msg.format(plugin_name, plugin_name))
+        else:
+            shutil.copy(plugin_path, _lexica_dir)
+
+    @classmethod
+    def disable_plugin(cls, plugin_name):
+        """
+        Disable a plugin that has already been installed by
+        appending '.disabled' to its filename. This does not delete the
+        plugin. However, if the plugin being disabled has the same name
+        as a plugin that was previously disabled, the previously
+        disabled plugin will be deleted. If the user doesn't have the
+        necessary permissions, this will fail, most likely with a
+        PermissionError.
+        """
+        if not plugin_name.endswith('.json'):
+            plugin_name = plugin_name + '.json'
+
+        if not os.path.isfile(os.path.join(_lexica_dir, plugin_name)):
+            msg = 'No plugin by the name {} exists.'
+            raise ValueError(msg.format(plugin_name))
+        else:
+            moved_name = plugin_name + '.disabled'
+            if os.path.isfile(os.path.join(_lexica_dir, moved_name)):
+                os.remove(os.path.join(_lexica_dir, moved_name))
+            shutil.move(os.path.join(_lexica_dir, plugin_name),
+                        os.path.join(_lexica_dir, moved_name))
+
+    @classmethod
+    def enable_plugin(cls, plugin_name):
+        """
+        Re-enable a plugin that has previously been disabled
+        by removing '.disabled' from its filename. If no plugin by
+        the name has been removed, or if a plugin by the same name
+        has already been reinstalled, raise a ValueError. If the user
+        doesn't have the necessary permissions, this will fail, most
+        likely with a PermissionError.
+        """
+        if not plugin_name.endswith('.json'):
+            plugin_name = plugin_name + '.json'
+
+        removed_plugin_name = plugin_name + '.disabled'
+        if not os.path.isfile(os.path.join(_lexica_dir, removed_plugin_name)):
+            msg = 'No plugin by the name {} has been disabled.'
+            raise ValueError(msg.format(plugin_name))
+        elif os.path.isfile(os.path.join(_lexica_dir, plugin_name)):
+            msg = 'A plugin by the name {} has already been reinstalled.'
+            raise ValueError(msg.format(plugin_name))
+        else:
+            shutil.move(os.path.join(_lexica_dir, removed_plugin_name),
+                        os.path.join(_lexica_dir, plugin_name))
+
+    @classmethod
+    def copy_plugin(cls, plugin_name, out_path):
+        """
+        Copy the current version of the plugin to a specified output
+        path. If no plugin by the name exists, or if a plugin by the
+        same name exists at the specified output location, raise a
+        ValueError. If the user doesn't have the necessary permissions,
+        this will fail, most likely with a PermissionError.
+
+        """
+        if not plugin_name.endswith('.json'):
+            plugin_name = plugin_name + '.json'
+
+        if os.path.isdir(out_path):
+            out_path = os.path.join(out_path, plugin_name)
+
+        if not os.path.isfile(os.path.join(_lexica_dir, plugin_name)):
+            msg = 'No plugin by the name {} exists.'
+            raise ValueError(msg.format(plugin_name))
+        elif os.path.exists(out_path):
+            msg = 'A file by the name {} already exists.'
+            raise ValueError(msg.format(out_path))
+        else:
+            shutil.copy(os.path.join(_lexica_dir, plugin_name),
+                        out_path)
+
+    @classmethod
     def from_plugin(cls, plugin_name):
         return cls(getattr(plugins, plugin_name))
 
@@ -70,6 +170,7 @@ class LexTrie(object):
         return sorted(cls._plugins.keys())
 
     def get_lex_tags(self, word):
+        """Return all the tags from the lexicon for a single word."""
         word = word + '~'
         root = self.trie
         for c in word:

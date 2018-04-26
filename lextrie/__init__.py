@@ -3,23 +3,32 @@ import os
 import sys
 import csv
 
+def print_usage():
+    print('Read a list of files, count Lexicon instances, '
+          'and generate a CSV.')
+    print('Usage: python lextrie.py file_path [file_path ...]')
+    print('Options: ')
+    for pn in LexTrie.plugin_names():
+        print('    --{}'.format(pn))
+
 def main():
     if len(sys.argv) <= 1 or (len(sys.argv) == 2 and
                               sys.argv[1].startswith('--')):
-        print('Read a list of files, count Lexicon instances, '
-              'and generate a CSV.')
-        print('Usage: python lextrie.py file_path [file_path ...]')
-        print('Options: ')
-        for pn in LexTrie.plugin_names():
-            print('    --{}'.format(pn))
+        print_usage()
     else:
-        main_exec()
+        args = list(sys.argv)[1:]
+        if args[0] in ['install_plugin', 'disable_plugin',
+                       'enable_plugin', 'copy_plugin']:
+            if len(args) == 1:
+                print_usage()
+            else:
+                getattr(LexTrie, args[0])(*args[1:])
+        else:
+            main_args = [a for a in args if not a.startswith('--')]
+            opts = [a for a in args if a.startswith('--')]
+            default_cmd(main_args, opts)
 
-def main_exec():
-    args = list(sys.argv)[1:]
-    opts = [a for a in args if a.startswith('--')]
-    args = [a for a in args if not a.startswith('--')]
-
+def default_cmd(args, opts):
     plugin_names = LexTrie.plugin_names()
     if opts:
         for op in opts:
@@ -29,9 +38,9 @@ def main_exec():
                 out_filename = '{}_count{{}}'.format(o)
             else:
                 print('Option {} is not available'.format(op))
-    elif 'lexicoder' in plugin_names:
-        out_model = LexTrie.from_plugin('lexicoder')
-        out_filename = 'lexicoder_count{}'
+    elif 'bing' in plugin_names:
+        out_model = LexTrie.from_plugin('bing')
+        out_filename = 'bing_count{}'
     elif plugin_names:
         out_model = LexTrie.from_plugin(plugin_names[0])
         out_filename = '{}_count{{}}'.format(plugin_names[0])
